@@ -1,1 +1,6 @@
 Flask
+fastapi
+uvicorn
+aiohttp
+requests
+redis
