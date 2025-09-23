@@ -11,9 +11,9 @@ class Config:
     """애플리케이션 설정 클래스"""
     
     # API 키 설정
-    KAKAO_API_KEY: Optional[str] = os.getenv("KAKAO_API_KEY")
-    NAVER_CLIENT_ID: Optional[str] = os.getenv("NAVER_CLIENT_ID")
-    NAVER_CLIENT_SECRET: Optional[str] = os.getenv("NAVER_CLIENT_SECRET")
+    KAKAO_API_KEY: Optional[str] = "760d7003a72dc5cad6638ebe8954f08e"
+    NAVER_CLIENT_ID: Optional[str] = "AltT5KZju4vADh4fx_98"
+    NAVER_CLIENT_SECRET: Optional[str] = "ldBPn0cJxI"
     
     # 캐시 설정
     CACHE_ENABLED: bool = os.getenv("CACHE_ENABLED", "true").lower() == "true"

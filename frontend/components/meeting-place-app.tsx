@@ -1,20 +1,36 @@
 "use client"
 
 import { useState } from "react"
-import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { MapPin, Navigation, Calculator, Plus, Minus, User } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { MapPin, Navigation, Calculator, Plus, Minus, User, Loader2 } from "lucide-react"
 import { StepNavigation } from "@/components/step-navigation"
+import { apiService, UserLocation } from "@/services/api"
+
+interface ParticipantInput {
+  address: string
+  coordinates?: UserLocation
+}
 
 export function MeetingPlaceApp() {
-  const [participants, setParticipants] = useState(["", "", ""])
+  const router = useRouter()
+  const [participants, setParticipants] = useState<ParticipantInput[]>([
+    { address: "" },
+    { address: "" },
+    { address: "" }
+  ])
+  const [radius, setRadius] = useState<number>(1000)
+  const [cuisine, setCuisine] = useState<string>("")
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const addParticipant = () => {
     if (participants.length < 10) {
-      setParticipants([...participants, ""])
+      setParticipants([...participants, { address: "" }])
     }
   }
 
@@ -24,10 +40,96 @@ export function MeetingPlaceApp() {
     }
   }
 
-  const updateParticipant = (index: number, value: string) => {
+  const updateParticipant = (index: number, address: string) => {
     const updated = [...participants]
-    updated[index] = value
+    updated[index] = { ...updated[index], address }
     setParticipants(updated)
+  }
+
+  // Mock geocoding function - in a real app, this would use Kakao Maps API
+  const mockGeocode = (address: string): UserLocation | null => {
+    // Sample coordinates for common Seoul locations
+    const mockLocations: Record<string, UserLocation> = {
+      "홍대입구역": { lat: 37.5563, lng: 126.9236 },
+      "강남역": { lat: 37.4979, lng: 127.0276 },
+      "신촌역": { lat: 37.5559, lng: 126.9364 },
+      "이태원역": { lat: 37.5345, lng: 126.9947 },
+      "명동역": { lat: 37.5636, lng: 126.9810 },
+      "종로3가역": { lat: 37.5703, lng: 126.9925 },
+      "서울역": { lat: 37.5547, lng: 126.9707 },
+      "잠실역": { lat: 37.5133, lng: 127.1000 },
+      "건대입구역": { lat: 37.5401, lng: 127.0695 },
+      "성수역": { lat: 37.5446, lng: 127.0557 }
+    }
+
+    // Check for exact matches first
+    for (const [key, coords] of Object.entries(mockLocations)) {
+      if (address.includes(key.replace("역", ""))) {
+        return coords
+      }
+    }
+
+    // Generate random coordinates around Seoul for other addresses
+    if (address.trim()) {
+      return {
+        lat: 37.5665 + (Math.random() - 0.5) * 0.1, // Seoul center ± 0.05 degrees
+        lng: 126.9780 + (Math.random() - 0.5) * 0.1
+      }
+    }
+
+    return null
+  }
+
+  const handleSearch = async () => {
+    setError(null)
+    setIsLoading(true)
+
+    try {
+      // Filter out empty addresses
+      const validParticipants = participants.filter(p => p.address.trim())
+      
+      if (validParticipants.length < 2) {
+        throw new Error("최소 2명의 참석자 주소가 필요합니다.")
+      }
+
+      // Convert addresses to coordinates
+      const userLocations: UserLocation[] = []
+      for (const participant of validParticipants) {
+        const coords = mockGeocode(participant.address)
+        if (coords) {
+          userLocations.push(coords)
+        } else {
+          throw new Error(`주소를 찾을 수 없습니다: ${participant.address}`)
+        }
+      }
+
+      // Call the backend API
+      const recommendations = await apiService.getRestaurantRecommendations(
+        userLocations,
+        {
+          radius,
+          cuisine: cuisine || undefined,
+          max_results: 15
+        }
+      )
+
+      // Store the results in sessionStorage to pass to the search page
+      sessionStorage.setItem('searchResults', JSON.stringify(recommendations))
+      sessionStorage.setItem('searchParams', JSON.stringify({
+        participants: validParticipants,
+        radius,
+        cuisine
+      }))
+
+      // Navigate to search results page
+      router.push('/search')
+
+    } catch (err) {
+      console.error('Search failed:', err)
+      setError(err instanceof Error ? err.message : '검색 중 오류가 발생했습니다.')
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -102,6 +204,48 @@ export function MeetingPlaceApp() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
+            {/* Search Options */}
+            <div className="grid md:grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
+              <div>
+                <Label htmlFor="radius" className="text-sm font-medium text-gray-700 mb-2 block">
+                  검색 반경
+                </Label>
+                <Select value={radius.toString()} onValueChange={(value) => setRadius(Number(value))}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="검색 반경 선택" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="500">500m</SelectItem>
+                    <SelectItem value="1000">1km</SelectItem>
+                    <SelectItem value="1500">1.5km</SelectItem>
+                    <SelectItem value="2000">2km</SelectItem>
+                    <SelectItem value="3000">3km</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="cuisine" className="text-sm font-medium text-gray-700 mb-2 block">
+                  선호 음식 (선택사항)
+                </Label>
+                <Select value={cuisine} onValueChange={setCuisine}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="음식 종류 선택" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">전체</SelectItem>
+                    <SelectItem value="한식">한식</SelectItem>
+                    <SelectItem value="중식">중식</SelectItem>
+                    <SelectItem value="일식">일식</SelectItem>
+                    <SelectItem value="양식">양식</SelectItem>
+                    <SelectItem value="카페">카페</SelectItem>
+                    <SelectItem value="치킨">치킨</SelectItem>
+                    <SelectItem value="피자">피자</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Participants */}
             <div className="space-y-4">
               {participants.map((participant, index) => (
                 <div key={index} className="flex items-center gap-3">
@@ -115,8 +259,8 @@ export function MeetingPlaceApp() {
                       </Label>
                       <Input
                         id={`participant-${index}`}
-                        placeholder="예: 홍대입구역, 강남구 역삼동"
-                        value={participant}
+                        placeholder="예: 홍대입구역, 강남역, 신촌역"
+                        value={participant.address}
                         onChange={(e) => updateParticipant(index, e.target.value)}
                         className="bg-white border-gray-200 focus:border-purple-500 focus:ring-purple-500"
                       />
@@ -148,15 +292,29 @@ export function MeetingPlaceApp() {
               ))}
             </div>
 
+            {/* Error Display */}
+            {error && (
+              <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-red-600 text-sm">{error}</p>
+              </div>
+            )}
+
             <div className="pt-6">
-              <Link href="/search">
-                <Button
-                  size="lg"
-                  className="w-full bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white font-semibold py-4 text-lg shadow-lg hover:shadow-xl transition-all duration-300"
-                >
-                  🎯 장소 추천받기
-                </Button>
-              </Link>
+              <Button
+                size="lg"
+                onClick={handleSearch}
+                disabled={isLoading}
+                className="w-full bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white font-semibold py-4 text-lg shadow-lg hover:shadow-xl transition-all duration-300 disabled:opacity-50"
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    장소 검색 중...
+                  </>
+                ) : (
+                  "🎯 장소 추천받기"
+                )}
+              </Button>
             </div>
           </CardContent>
         </Card>
