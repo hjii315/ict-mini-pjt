@@ -105,6 +105,56 @@ export function SearchResults() {
     })
   }
 
+  const formatMidpointAddress = (midpoint: any) => {
+    console.log('Midpoint data:', midpoint) // 디버깅용
+    
+    // 주소 정보가 있는 경우 우선순위에 따라 표시
+    if (midpoint.address && midpoint.address.trim()) {
+      return midpoint.address
+    }
+    if (midpoint.road_address && midpoint.road_address.trim()) {
+      return midpoint.road_address
+    }
+    if (midpoint.jibun_address && midpoint.jibun_address.trim()) {
+      return midpoint.jibun_address
+    }
+    
+    // 지역 정보로 주소 구성
+    if (midpoint.region1 || midpoint.region2 || midpoint.region3) {
+      const regions = [midpoint.region1, midpoint.region2, midpoint.region3]
+        .filter(region => region && region.trim())
+        .join(' ')
+      if (regions) {
+        return regions
+      }
+    }
+    
+    // 좌표를 한국어 주소 형태로 변환
+    if (midpoint.lat && midpoint.lng) {
+      // 서울 지역 대략적인 구 이름 매핑
+      const lat = parseFloat(midpoint.lat)
+      const lng = parseFloat(midpoint.lng)
+      
+      let district = "서울시 중심가"
+      
+      if (lat >= 37.55 && lat <= 37.58 && lng >= 126.92 && lng <= 126.95) {
+        district = "서울시 마포구"
+      } else if (lat >= 37.49 && lat <= 37.52 && lng >= 127.02 && lng <= 127.05) {
+        district = "서울시 강남구"
+      } else if (lat >= 37.54 && lat <= 37.57 && lng >= 126.97 && lng <= 127.00) {
+        district = "서울시 중구"
+      } else if (lat >= 37.52 && lat <= 37.55 && lng >= 127.00 && lng <= 127.03) {
+        district = "서울시 서초구"
+      } else if (lat >= 37.55 && lat <= 37.58 && lng >= 127.00 && lng <= 127.03) {
+        district = "서울시 성동구"
+      }
+      
+      return `${district} 일대`
+    }
+    
+    return "계산된 중간지점"
+  }
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-500 via-purple-500 to-purple-600">
@@ -134,7 +184,7 @@ export function SearchResults() {
               <h1 className="text-xl font-bold text-gray-800">추천 장소</h1>
               {searchResults && (
                 <p className="text-sm text-gray-600">
-                  {searchResults.returned}개 장소 발견 • 중심지: {searchResults.midpoint.address || '계산된 중간지점'}
+                  {searchResults.returned}개 장소 발견 • 중심지: {formatMidpointAddress(searchResults.midpoint)}
                 </p>
               )}
             </div>
@@ -168,7 +218,10 @@ export function SearchResults() {
                       <MapPin className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                       <h3 className="text-lg font-semibold text-gray-700 mb-2">지도 영역</h3>
                       <p className="text-sm text-gray-500 mb-4">
-                        중심지: {searchResults.midpoint.lat.toFixed(4)}, {searchResults.midpoint.lng.toFixed(4)}
+                        중심지: {formatMidpointAddress(searchResults.midpoint)}
+                      </p>
+                      <p className="text-xs text-gray-400 mb-2">
+                        모든 참석자에게 공평한 거리의 만남 장소입니다
                       </p>
                       <p className="text-xs text-gray-400">
                         실제 구현 시 카카오맵 API를 연동하여<br />
@@ -321,7 +374,7 @@ export function SearchResults() {
                 size="lg"
                 className="w-full bg-gradient-to-r from-green-500 to-blue-600 hover:from-green-600 hover:to-blue-700 text-white font-semibold py-4 text-lg shadow-lg hover:shadow-xl transition-all duration-300"
               >
-                💰 정산 계산하기
+                정산 계산하기
               </Button>
             </Link>
           </div>
