@@ -1,6 +1,8 @@
 Flask
+requests
+python-dotenv
+Pillow
 fastapi
 uvicorn
 aiohttp
-requests
 redis
