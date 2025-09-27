@@ -1,5 +1,5 @@
 import CompletionPage from "@/components/completion-page"
 
-export default function Complete() {
+export default function CompletePage() {
   return <CompletionPage />
 }
