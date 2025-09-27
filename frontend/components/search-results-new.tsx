@@ -210,8 +210,7 @@ export function SearchResults() {
                   onSelect={(r) => {
                     setSelectedRestaurant(r)
                     sessionStorage.setItem("selectedRestaurant", JSON.stringify(r))
-                    window.location.href = "/calculator"
-                  }}
+                }}
                 />
               )}
             </div>
