@@ -11,22 +11,23 @@ interface Props {
   formatDistance: (distance: string) => string
   getMockRating: (r: Restaurant) => string
   travelTimes?: string[]
+  onSelect?: (restaurant: Restaurant) => void
 }
 
-export function RestaurantList({ restaurants, formatDistance, getMockRating, travelTimes }: Props) {
+export function RestaurantList({ restaurants, formatDistance, getMockRating, travelTimes, onSelect }: Props) {
   return (
     <div className="space-y-4">
       {restaurants.map((restaurant) => (
         <Card
-          key={restaurant.place_id}
+          key={ restaurant.place_id}
           className="bg-white/95 backdrop-blur-sm border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
         >
           <CardContent className="p-4">
             <div className="flex gap-4">
               <div className="flex-shrink-0">
                 <img
-                  src={restaurant.image_url || "/placeholder.svg"}
-                  alt={restaurant.place_name}
+                  src={ restaurant.image_url || "/placeholder.svg"}
+                  alt={ restaurant.place_name}
                   className="w-24 h-20 object-cover rounded-lg"
                   onError={(e) => { (e.target as HTMLImageElement).src = "/placeholder.svg" }}
                 />
@@ -36,7 +37,7 @@ export function RestaurantList({ restaurants, formatDistance, getMockRating, tra
                   <div>
                     <h3 className="font-semibold text-gray-800 text-lg">{restaurant.place_name}</h3>
                     <Badge variant="secondary" className="text-xs mt-1">
-                      {restaurant.place_category || "음식점"}
+                      { restaurant.place_category || "음식점"}
                     </Badge>
                   </div>
                   <div className="flex items-center gap-1 text-yellow-500">
@@ -55,7 +56,7 @@ export function RestaurantList({ restaurants, formatDistance, getMockRating, tra
                   <span className="text-sm">중심지에서 {formatDistance(restaurant.distance)}</span>
                 </div>
 
-                {restaurant.place_phone && (
+                { restaurant.place_phone && (
                   <div className="flex items-center gap-1 text-gray-600 mb-2">
                     <Phone className="h-4 w-4" />
                     <span className="text-sm">{restaurant.place_phone}</span>
@@ -70,10 +71,14 @@ export function RestaurantList({ restaurants, formatDistance, getMockRating, tra
                 )}
 
                 <div className="flex gap-2">
-                  <Button size="sm" className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white">
+                  <Button
+                    size="sm"
+                    className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white"
+                    onClick={() => onSelect?.(restaurant)}
+                  >
                     선택하기
                   </Button>
-                  {restaurant.place_url && (
+                  { restaurant.place_url && (
                     <Button size="sm" variant="outline" className="border-gray-300" onClick={() => window.open(restaurant.place_url, "_blank")}>
                       <ExternalLink className="h-4 w-4 mr-1" />
                       상세보기

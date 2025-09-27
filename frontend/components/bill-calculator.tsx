@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -19,12 +19,34 @@ export default function BillCalculator() {
   const [roundingMethod, setRoundingMethod] = useState("round")
   const [showHistory, setShowHistory] = useState(false)
 
-  // Mock restaurant data (would come from previous page)
-  const selectedRestaurant = {
-    name: "맛있는 한식당",
-    address: "서울시 강남구 역삼동 123-45",
-    priceRange: "15,000원 ~ 25,000원",
-  }
+  // 선택된 식당 정보 로드 (sessionStorage)
+  const [selectedRestaurant, setSelectedRestaurant] = useState<{ name: string; address: string; priceRange?: string } | null>(null)
+
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem("selectedRestaurant")
+      if (raw) {
+        const r = JSON.parse(raw)
+        setSelectedRestaurant({
+          name: r.place_name || "선택된 식당",
+          address: r.place_address || r.road_address || r.jibun_address || "주소 미확인",
+          priceRange: r.price_range || undefined,
+        })
+      } else {
+        setSelectedRestaurant({
+          name: "맛있는 한식당",
+          address: "서울시 강남구 역삼동 123-45",
+          priceRange: "15,000원 ~ 25,000원",
+        })
+      }
+    } catch {
+      setSelectedRestaurant({
+        name: "맛있는 한식당",
+        address: "서울시 강남구 역삼동 123-45",
+        priceRange: "15,000원 ~ 25,000원",
+      })
+    }
+  }, [])
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("ko-KR").format(amount)
@@ -106,10 +128,10 @@ export default function BillCalculator() {
                 <MapPin className="w-6 h-6 text-white" />
               </div>
               <div className="flex-1">
-                <h3 className="font-semibold text-lg text-gray-900">{selectedRestaurant.name}</h3>
-                <p className="text-gray-600 text-sm mb-2">{selectedRestaurant.address}</p>
+                <h3 className="font-semibold text-lg text-gray-900">{selectedRestaurant?.name || "선택된 식당"}</h3>
+                <p className="text-gray-600 text-sm mb-2">{selectedRestaurant?.address || "주소 미확인"}</p>
                 <Badge variant="secondary" className="bg-blue-100 text-blue-700">
-                  예상 가격: {selectedRestaurant.priceRange}
+                  예상 가격: {selectedRestaurant?.priceRange || "예상가 제공 없음"}
                 </Badge>
               </div>
             </div>

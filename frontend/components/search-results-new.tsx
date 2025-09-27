@@ -24,6 +24,7 @@ export function SearchResults() {
   const [error, setError] = useState<string | null>(null)
   const [searchResults, setSearchResults] = useState<RecommendationResponse | null>(null)
   const [searchParams, setSearchParams] = useState<SearchParams | null>(null)
+  const [selectedRestaurant, setSelectedRestaurant] = useState<Restaurant | null>(null)
 
   useEffect(() => {
     const loadSearchResults = () => {
@@ -61,7 +62,7 @@ export function SearchResults() {
     if (sortBy === "rating") {
       const ra = parseFloat(getMockRating(a))
       const rb = parseFloat(getMockRating(b))
-      return rb - ra // 평점 높은 순
+      return rb - ra
     }
     const getDistance = (restaurant: Restaurant) => {
       const distanceMatch = restaurant.distance?.match(/[\d.]+/)
@@ -90,7 +91,7 @@ export function SearchResults() {
   const getMockTravelTimes = (participants: Array<{ address: string }>) =>
     participants.map(() => `${Math.round(10 + Math.random() * 15)}분`)
 
-  // 위도/경도 대신 주소만 반환. 주소 없으면 "주소 미확인".
+  // 위도/경도 대신 주소만 표시. 주소가 없으면 "주소 미확인" 반환
   const formatMidpointAddress = (midpoint: any) => {
     if (midpoint?.address?.trim()) return midpoint.address
     if (midpoint?.road_address?.trim()) return midpoint.road_address
@@ -144,7 +145,11 @@ export function SearchResults() {
           <div className="order-2 lg:order-1 lg:sticky lg:top-24 self-start">
             <MapSection title="지도">
               {searchResults ? (
-                <KakaoMap midpoint={searchResults.midpoint} restaurants={restaurants} />
+                <KakaoMap
+                  midpoint={searchResults.midpoint}
+                  restaurants={restaurants}
+                  selected={selectedRestaurant || undefined}
+                />
               ) : (
                 <div className="flex items-center justify-center h-full">
                   <MapLoadingSkeleton />
@@ -202,6 +207,11 @@ export function SearchResults() {
                   formatDistance={formatDistance}
                   getMockRating={getMockRating}
                   travelTimes={searchParams ? getMockTravelTimes(searchParams.participants) : undefined}
+                  onSelect={(r) => {
+                    setSelectedRestaurant(r)
+                    sessionStorage.setItem("selectedRestaurant", JSON.stringify(r))
+                    window.location.href = "/calculator"
+                  }}
                 />
               )}
             </div>
