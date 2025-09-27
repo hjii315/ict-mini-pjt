@@ -32,3 +32,28 @@ ict-mini-pjt/ ├─ app.py # (Flask 샘플) 영수증 계산/Clova OCR 분석 �
 3. 헬스체크
 GET http://localhost:9000/health → {"status":"healthy","service":"meetup"}
 
+## 최근 변경 사항 (2025-09-27)
+
+- 프론트엔드 레이아웃/스타일 복원
+  - [frontend/app/layout.tsx](cci:7://file:///d:/%EC%9E%A5%EC%A7%84/ict_mini-pjt/ict-mini-pjt/frontend/app/layout.tsx:0:0-0:0)에 `../styles/globals.css`, [ThemeProvider](cci:1://file:///d:/%EC%9E%A5%EC%A7%84/ict_mini-pjt/ict-mini-pjt/frontend/components/theme-provider.tsx:8:0-10:1), `<meta name="viewport" ...>` 추가
+  - Kakao SDK 스크립트 HTTPS 사용 + autoload=false:
+    `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${NEXT_PUBLIC_KAKAO_JS_KEY}&libraries=services&autoload=false`
+
+- 검색 결과 페이지 개선 ([frontend/components/search-results-new.tsx](cci:7://file:///d:/%EC%9E%A5%EC%A7%84/ict_mini-pjt/ict-mini-pjt/frontend/components/search-results-new.tsx:0:0-0:0))
+  - 헤더: 제목 우측에 중간지점 주소를 동일 폰트 크기로 표시, “N개 장소 발견”은 보조 텍스트로 분리
+  - 지도: 좌측 컬럼 sticky 고정(`lg:sticky lg:top-24`)
+  - 정렬: 평점순은 화면 표시 평점(getMockRating) 기준 내림차순
+
+## 환경 변수
+- `frontend/.env.local`
+  - `NEXT_PUBLIC_API_URL=http://localhost:9000`
+  - `NEXT_PUBLIC_KAKAO_JS_KEY=
+- Kakao Developers 콘솔에 `http://localhost:3000` 도메인 등록
+
+## 트러블슈팅
+- 빌드 에러 “Expression expected”:
+  - [search-results-new.tsx](cci:7://file:///d:/%EC%9E%A5%EC%A7%84/ict_mini-pjt/ict-mini-pjt/frontend/components/search-results-new.tsx:0:0-0:0) 내 `{{ ... }}` 플레이스홀더 제거
+- 지도 미표시:
+  - `.env.local` 키 확인, 콘솔 도메인 등록, dev 서버 재시작
+- 평점(정렬/표시) 불일치:
+  - 현재는 모의 평점 기반. 실제 평점을 사용하려면 백엔드에서 평점 필드를 보강해야 함

@@ -61,7 +61,7 @@ export function SearchResults() {
     if (sortBy === "rating") {
       const ra = parseFloat(getMockRating(a))
       const rb = parseFloat(getMockRating(b))
-      return rb - ra
+      return rb - ra // 평점 높은 순
     }
     const getDistance = (restaurant: Restaurant) => {
       const distanceMatch = restaurant.distance?.match(/[\d.]+/)
@@ -90,18 +90,18 @@ export function SearchResults() {
   const getMockTravelTimes = (participants: Array<{ address: string }>) =>
     participants.map(() => `${Math.round(10 + Math.random() * 15)}분`)
 
+  // 위도/경도 대신 주소만 반환. 주소 없으면 "주소 미확인".
   const formatMidpointAddress = (midpoint: any) => {
-    if (midpoint.address?.trim()) return midpoint.address
-    if (midpoint.road_address?.trim()) return midpoint.road_address
-    if (midpoint.jibun_address?.trim()) return midpoint.jibun_address
-    if (midpoint.region1 || midpoint.region2 || midpoint.region3) {
+    if (midpoint?.address?.trim()) return midpoint.address
+    if (midpoint?.road_address?.trim()) return midpoint.road_address
+    if (midpoint?.jibun_address?.trim()) return midpoint.jibun_address
+    if (midpoint?.region1 || midpoint?.region2 || midpoint?.region3) {
       const regions = [midpoint.region1, midpoint.region2, midpoint.region3]
         .filter((r: string) => r?.trim())
         .join(" ")
       if (regions) return regions
     }
-    if (midpoint.lat && midpoint.lng) return `${midpoint.lat}, ${midpoint.lng}`
-    return "계산된 중간지점"
+    return "주소 미확인"
   }
 
   if (isLoading) {
@@ -129,18 +129,12 @@ export function SearchResults() {
                 <ArrowLeft className="h-5 w-5" />
               </Button>
             </Link>
-            <div className="flex-1 flex items-center justify-between">
-              <h1 className="text-xl font-bold text-gray-800">추천 장소</h1>
-              {searchResults && (
-                <div className="text-xl font-bold text-gray-800 text-right truncate max-w-[70%]">
-                  {formatMidpointAddress(searchResults.midpoint)}
-                </div>
-              )}
+            <div className="flex-1">
+              <h1 className="text-xl font-bold text-gray-800">
+                추천 장소 : {searchResults ? formatMidpointAddress(searchResults.midpoint) : ""}
+              </h1>
             </div>
           </div>
-          {searchResults && (
-            <p className="text-sm text-gray-600 mt-1">{searchResults.returned}개 장소 발견</p>
-          )}
         </div>
       </div>
 
@@ -163,7 +157,9 @@ export function SearchResults() {
           <div className="order-1 lg:order-2">
             <div className="mb-6">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-bold text-white">추천 장소 목록</h2>
+                <h2 className="text-xl font-bold text-white">
+                  추천 장소 목록 : {searchResults ? searchResults.returned : restaurants.length}개
+                </h2>
                 <div className="flex gap-2">
                   <Button
                     variant={sortBy === "distance" ? "default" : "outline"}
