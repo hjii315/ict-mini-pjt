@@ -116,21 +116,36 @@ async function analyzeReceipt() {
 }
 
 function displayMenuItems(items) {
-    menuItems = items;
+    // Normalize items: set quantity and base unit price for calculations
+    menuItems = (items || []).map(it => {
+        const ocrQty = Number.isFinite(it.quantity) && it.quantity > 0 ? parseInt(it.quantity) : null;
+        const qty = ocrQty || 1;
+        const unit = Number.isFinite(it.unit_price) ? Number(it.unit_price) : (qty > 0 ? Number(it.price) / qty : Number(it.price));
+        return {
+            ...it,
+            quantity: qty,            // current user-selected quantity
+            maxQuantity: ocrQty,      // OCR-detected maximum (if provided)
+            _baseUnit: isFinite(unit) && unit > 0 ? unit : Number(it.price) || 0,
+        };
+    });
     menuSelection = {}; // 메뉴가 새로 들어오면 선택 상태 초기화
     const menuList = document.getElementById('menuList');
     const analysisResultSection = document.getElementById('analysisResultSection');
     menuList.innerHTML = '';
 
-    if (items.length > 0) {
-        items.forEach((item, index) => {
+    if (menuItems.length > 0) {
+        menuItems.forEach((item, index) => {
             const li = document.createElement('li');
             li.innerHTML = `
                 <div class="menu-item-details">
                     <input type="checkbox" id="menu-item-${index}" onchange="updateParticipantSelection(${index}, this.checked)">
                     <label for="menu-item-${index}" class="menu-item-name">${item.name}</label>
                 </div>
-                <span class="menu-item-price">${item.price.toLocaleString()}원</span>
+                <div class="menu-item-qty">
+                    <label for="menu-qty-${index}">수량</label>
+                    <input type="number" id="menu-qty-${index}" min="1" ${item.maxQuantity ? `max="${item.maxQuantity}"` : ''} step="1" value="${item.quantity}" onchange="onQuantityChange(${index}, this.value)">
+                </div>
+                <span class="menu-item-price" id="menu-price-${index}">${getItemTotal(item).toLocaleString()}원</span>
             `;
             menuList.appendChild(li);
         });
@@ -141,6 +156,27 @@ function displayMenuItems(items) {
     // 분석 완료 후, 정산 모드에 따라 금액 계산
     updateParticipantTotals();
     updateParticipantSelectionView();
+}
+
+function onQuantityChange(index, value) {
+    let qty = Math.max(1, parseInt(value || '1'));
+    const maxQ = menuItems[index].maxQuantity;
+    if (Number.isFinite(maxQ) && maxQ > 0 && qty > maxQ) {
+        qty = maxQ;
+        const input = document.getElementById(`menu-qty-${index}`);
+        if (input) input.value = String(maxQ);
+    }
+    menuItems[index].quantity = qty;
+    // Update displayed item total
+    const priceEl = document.getElementById(`menu-price-${index}`);
+    if (priceEl) priceEl.textContent = `${getItemTotal(menuItems[index]).toLocaleString()}원`;
+    updateParticipantTotals();
+}
+
+function getItemTotal(item) {
+    const qty = Number.isFinite(item.quantity) && item.quantity > 0 ? item.quantity : 1;
+    const unit = Number.isFinite(item._baseUnit) && item._baseUnit > 0 ? item._baseUnit : (Number.isFinite(item.unit_price) ? item.unit_price : (Number.isFinite(item.price) ? item.price : 0));
+    return Math.round(unit * qty);
 }
 
 function updateParticipantSelectionView() {
@@ -201,7 +237,7 @@ function updateParticipantTotals() {
     participants.forEach(p => personalTotals[p] = 0);
     for (const itemIndex in menuSelection) {
         const participant = menuSelection[itemIndex];
-        personalTotals[participant] += menuItems[itemIndex].price;
+        personalTotals[participant] += getItemTotal(menuItems[itemIndex]);
     }
 
     // 화면 업데이트

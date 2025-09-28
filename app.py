@@ -46,11 +46,14 @@ def analyze_receipt():
     if file.filename == '':
         return jsonify({'error': 'No selected file'}), 400
 
-    api_url = os.getenv('CLOVA_OCR_API_URL')
-    secret_key = os.getenv('CLOVA_OCR_SECRET_KEY')
+    # 우선순위: RECEIPT_*  ->  CLOVA_*
+    api_url = os.getenv('RECEIPT_OCR_API_URL') or os.getenv('CLOVA_OCR_API_URL')
+    secret_key = os.getenv('RECEIPT_OCR_SECRET_KEY') or os.getenv('CLOVA_OCR_SECRET_KEY')
+    # 일부 영수증 API는 헤더 키가 다를 수 있으므로 환경변수로 지정 가능 (기본 CLOVA 호환)
+    header_name = os.getenv('RECEIPT_OCR_HEADER_NAME', 'X-OCR-SECRET')
 
     if not api_url or not secret_key:
-        return jsonify({'error': 'API credentials not configured'}), 500
+        return jsonify({'error': 'Receipt OCR API credentials not configured'}), 500
 
     request_json = {
         'images': [
@@ -66,66 +69,223 @@ def analyze_receipt():
 
     payload = {'message': json.dumps(request_json).encode('UTF-8')}
     files = [('file', file.read())]
-    headers = {'X-OCR-SECRET': secret_key}
+    headers = {header_name: secret_key}
 
     try:
         response = requests.post(api_url, headers=headers, data=payload, files=files)
         response.raise_for_status() # Raise an exception for bad status codes
         result = response.json()
+        # 서버 콘솔에 원본 응답 로깅
+        try:
+            app.logger.info('[OCR RAW] %s', json.dumps(result, ensure_ascii=False)[:2000])
+        except Exception:
+            app.logger.info('[OCR RAW] <unserializable>')
 
 
-        # 일반 OCR 결과를 파싱하기 위한 로직
+        # 1) 구조화된 영수증 응답 우선 파싱 (images[0].receipt.result)
         total_price = 0
         items = []
         import re
 
-        all_text = ""
-        fields = result.get('images', [{}])[0].get('fields', [])
-        for field in fields:
-            all_text += field.get('inferText', '') + ('\n' if field.get('lineBreak') else ' ')
+        def _get_from_path(obj, path):
+            cur = obj
+            for k in path:
+                if isinstance(cur, dict) and k in cur:
+                    cur = cur[k]
+                else:
+                    return None
+            return cur
 
-        lines = all_text.split('\n')
-        
-        # 1. 총액 찾기 (키워드 기반)
-        total_keywords = ['합계', '총액', '받을금액']
-        for line in reversed(lines): # 보통 총액은 아래쪽에 있으므로 역순으로 탐색
-            for keyword in total_keywords:
-                if keyword in line:
-                    # 라인에서 숫자만 추출
-                    numbers = re.findall(r'[\d,]+', line)
-                    if numbers:
-                        try:
-                            price_text = numbers[-1].replace(',', '') # 가장 마지막 숫자를 총액으로 간주
-                            total_price = float(price_text)
-                            break
-                        except ValueError:
-                            continue
-            if total_price > 0:
-                break
+        def _to_number(val):
+            try:
+                return float(str(val).replace(',', '').strip())
+            except Exception:
+                return None
 
-        # 2. 메뉴 항목 찾기 (패턴 기반)
-        # 한글/영어 메뉴 이름과 숫자로 된 가격이 함께 있는 라인을 찾음
-        for line in lines:
-            # 메뉴 이름으로 추정되는 부분 (숫자로 시작하지 않는 문자열)
-            name_match = re.search(r'^[가-힣a-zA-Z\s]+', line)
-            # 가격으로 추정되는 부분 (쉼표가 포함된 숫자)
-            price_match = re.search(r'([\d,]{2,})', line)
+        images = result.get('images', [])
+        receipt_block = (images[0] if images else {}).get('receipt') or {}
+        receipt_res = receipt_block.get('result') or {}
 
-            if name_match and price_match:
-                name = name_match.group(0).strip()
-                price_str = price_match.group(1).replace(',', '')
-                
-                # '수량', '단가' 등의 단어가 포함된 라인은 메뉴가 아닐 가능성이 높으므로 제외
-                if any(keyword in name for keyword in ['수량', '단가', '합계', '금액', '부가세']):
-                    continue
-                
-                try:
-                    price = float(price_str)
-                    # 너무 크거나 작은 금액은 제외 (예: 100원 미만, 100만원 초과)
-                    if 100 < price < 1000000:
-                        items.append({'name': name, 'price': price})
-                except ValueError:
-                    continue
+        if receipt_res:
+            # 총액 후보 경로들 탐색
+            total_paths = [
+                ('totalPrice', 'price', 'formatted', 'value'),
+                ('totalPrice', 'price', 'value'),
+                ('totalPrice', 'formatted', 'value'),
+                ('totalPrice', 'value'),
+                ('totalPayment', 'price', 'formatted', 'value'),
+                ('totalPayment', 'price', 'value'),
+                ('totalPayment', 'value'),
+            ]
+            for p in total_paths:
+                v = _get_from_path(receipt_res, p)
+                num = _to_number(v)
+                if num and num > 0:
+                    total_price = num
+                    break
+
+            # 품목 파싱 (subResults[*].items[] 또는 result.items)
+            sub_results = receipt_res.get('subResults') or []
+            parsed_any = False
+            for sr in sub_results:
+                for it in sr.get('items', []) or []:
+                    # 이름 추출
+                    name = None
+                    if isinstance(it.get('name'), dict):
+                        name = it['name'].get('text') or _get_from_path(it['name'], ('formatted', 'value'))
+                    else:
+                        name = it.get('name')
+                    # 가격 추출
+                    price = None
+                    price_obj = it.get('price') or {}
+                    cand = (
+                        _get_from_path(price_obj, ('price', 'formatted', 'value'))
+                        or _get_from_path(price_obj, ('price', 'value'))
+                        or _get_from_path(price_obj, ('formatted', 'value'))
+                        or price_obj.get('value')
+                        or it.get('price')
+                    )
+                    price = _to_number(cand)
+                    # 수량 추출
+                    qty_cand = (
+                        _get_from_path(it, ('count', 'formatted', 'value'))
+                        or _get_from_path(it, ('count', 'value'))
+                        or _get_from_path(it, ('quantity', 'formatted', 'value'))
+                        or _get_from_path(it, ('quantity', 'value'))
+                        or it.get('count')
+                        or it.get('quantity')
+                    )
+                    quantity = None
+                    try:
+                        quantity = int(str(qty_cand).strip()) if qty_cand is not None and str(qty_cand).strip() != '' else None
+                    except Exception:
+                        quantity = None
+
+                    # 단가 추출
+                    unit_obj = it.get('unitPrice') or {}
+                    unit_cand = (
+                        _get_from_path(unit_obj, ('price', 'formatted', 'value'))
+                        or _get_from_path(unit_obj, ('price', 'value'))
+                        or _get_from_path(unit_obj, ('formatted', 'value'))
+                        or unit_obj.get('value')
+                    )
+                    unit_price = _to_number(unit_cand)
+
+                    if name and price and 100 < price < 1000000:
+                        item_row = {'name': str(name).strip(), 'price': price}
+                        if quantity is not None:
+                            item_row['quantity'] = quantity
+                        if unit_price is not None:
+                            item_row['unit_price'] = unit_price
+                        items.append(item_row)
+                        parsed_any = True
+
+            if not parsed_any:
+                # 다른 구조도 시도: result.items
+                for it in receipt_res.get('items', []) or []:
+                    name = None
+                    if isinstance(it.get('name'), dict):
+                        name = it['name'].get('text') or _get_from_path(it['name'], ('formatted', 'value'))
+                    else:
+                        name = it.get('name')
+                    cand = (
+                        _get_from_path(it, ('price', 'formatted', 'value'))
+                        or _get_from_path(it, ('price', 'value'))
+                        or it.get('price')
+                    )
+                    price = _to_number(cand)
+                    # 수량
+                    qty_cand = (
+                        _get_from_path(it, ('count', 'formatted', 'value'))
+                        or _get_from_path(it, ('count', 'value'))
+                        or _get_from_path(it, ('quantity', 'formatted', 'value'))
+                        or _get_from_path(it, ('quantity', 'value'))
+                        or it.get('count')
+                        or it.get('quantity')
+                    )
+                    quantity = None
+                    try:
+                        quantity = int(str(qty_cand).strip()) if qty_cand is not None and str(qty_cand).strip() != '' else None
+                    except Exception:
+                        quantity = None
+
+                    # 단가
+                    unit_obj = it.get('unitPrice') or {}
+                    unit_cand = (
+                        _get_from_path(unit_obj, ('price', 'formatted', 'value'))
+                        or _get_from_path(unit_obj, ('price', 'value'))
+                        or _get_from_path(unit_obj, ('formatted', 'value'))
+                        or unit_obj.get('value')
+                    )
+                    unit_price = _to_number(unit_cand)
+
+                    if name and price and 100 < price < 1000000:
+                        item_row = {'name': str(name).strip(), 'price': price}
+                        if quantity is not None:
+                            item_row['quantity'] = quantity
+                        if unit_price is not None:
+                            item_row['unit_price'] = unit_price
+                        items.append(item_row)
+
+        # 2) 텍스트 기반 파싱 (구조화 파싱 실패 시 보조)
+        if total_price == 0 and not items:
+            all_text = ""
+            fields = (images[0] if images else {}).get('fields', [])
+            for field in fields:
+                all_text += field.get('inferText', '') + ('\n' if field.get('lineBreak') else ' ')
+
+            # 서버 콘솔에 추출 텍스트 로깅
+            app.logger.info('[OCR TEXT]\n%s', all_text[:2000])
+
+            lines = all_text.split('\n')
+            
+            # 총액 키워드 순방향 스캔
+            total_keywords = ['합계', '총액', '받을금액']
+            for line in lines:
+                for keyword in total_keywords:
+                    if keyword in line:
+                        numbers = re.findall(r'[\d,]+', line)
+                        if numbers:
+                            num = _to_number(numbers[-1])
+                            if num and num > 0:
+                                total_price = num
+                                break
+                if total_price > 0:
+                    break
+
+            # 품목 라인 추정
+            for line in lines:
+                name_match = re.search(r'^[가-힣a-zA-Z\s]+', line)
+                price_match = re.search(r'([\d,]{2,})', line)
+                if name_match and price_match:
+                    name = name_match.group(0).strip()
+                    price_str = price_match.group(1)
+                    num = _to_number(price_str)
+                    if any(k in name for k in ['수량', '단가', '합계', '금액', '부가세']):
+                        continue
+                    if num and 100 < num < 1000000:
+                        # 수량/단가 간단 추출 (예: "x2", "2개", "수량 2")
+                        qty = None
+                        unit_price = None
+                        m_qty = re.search(r'[xX](\d+)|(\d+)\s*개|수량\s*(\d+)', line)
+                        if m_qty:
+                            qty = next((int(g) for g in m_qty.groups() if g), None)
+                            if qty and qty > 0:
+                                # 단가 추정: 총액/수량
+                                unit_price = round(num / qty, 2)
+                        item_row = {'name': name, 'price': num}
+                        if qty:
+                            item_row['quantity'] = qty
+                        if unit_price:
+                            item_row['unit_price'] = unit_price
+                        items.append(item_row)
+
+        # 추출 요약 로깅
+        try:
+            preview_items = items[:5]
+            app.logger.info('[EXTRACTED] total_price=%s, items_count=%d, items_preview=%s', total_price, len(items), json.dumps(preview_items, ensure_ascii=False))
+        except Exception:
+            pass
 
         return jsonify({'total_price': total_price, 'items': items})
 
