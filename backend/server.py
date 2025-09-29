@@ -32,6 +32,7 @@ import aiohttp
 from fastapi import FastAPI, HTTPException, Body, Request
 from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.wsgi import WSGIMiddleware
 import uvicorn
 
 # 공통 유틸리티 모듈 추가
@@ -76,6 +77,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+from app import app as flask_app                     # ← 추가 (중복 금지!)
+app.mount("/flask", WSGIMiddleware(flask_app))       # ← 추가 (반드시 FastAPI 생성 '후')
 
 # =============================================================================
 # MIDDLEWARE (Request/Response logging)

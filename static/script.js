@@ -96,7 +96,8 @@ async function analyzeReceipt() {
     document.getElementById('analyzeBtn').disabled = true;
 
     try {
-        const response = await fetch('/analyze-receipt', { method: 'POST', body: formData });
+        const response = await fetch('/flask/analyze-receipt', { method: 'POST', body: formData });
+
         if (!response.ok) throw new Error(`Network response was not ok: ${response.statusText}`);
         
         const data = await response.json();
@@ -114,6 +115,8 @@ async function analyzeReceipt() {
         document.getElementById('analyzeBtn').disabled = false;
     }
 }
+
+  
 
 function displayMenuItems(items) {
     // Normalize items: set quantity and base unit price for calculations

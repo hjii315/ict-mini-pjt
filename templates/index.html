@@ -5,7 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>식사비 정산</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <script src="https://developers.kakao.com/sdk/js/kakao.js"></script>
+    <script src="https://developers.kakao.com/sdk/js/kakao.min.js">
+        window.ANALYZE_URL = "{{ url_for('analyze_receipt') }}";
+    </script>
+  
 </head>
 <body>
     <div class="container">
@@ -72,7 +75,7 @@
         <button class="action-button" onclick="sendKakaoTalkMessages()">카카오톡으로 정산 요청하기</button>
     </div>
 
-    <script src="https://developers.kakao.com/sdk/js/kakao.min.js"></script>
+    
     <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
 </html>

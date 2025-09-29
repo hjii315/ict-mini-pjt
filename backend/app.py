@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from flask import Flask, render_template, request, jsonify
+from pathlib import Path 
 import math
 import os
 import requests
@@ -9,7 +10,13 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-app = Flask(__name__)
+ROOT = Path(__file__).resolve().parents[1]
+
+app = Flask(
+    __name__,
+    template_folder=str(ROOT / "templates"),  # ← 루트의 templates 사용
+    static_folder=str(ROOT / "static"),       # ← 루트의 static 사용
+)
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
