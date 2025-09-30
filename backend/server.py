@@ -79,7 +79,7 @@ app.add_middleware(
 )
 
 from app import app as flask_app                     # ← 추가 (중복 금지!)
-app.mount("/flask", WSGIMiddleware(flask_app))       # ← 추가 (반드시 FastAPI 생성 '후')
+app.mount("/calculator", WSGIMiddleware(flask_app))       # ← 추가 (반드시 FastAPI 생성 '후')
 
 # =============================================================================
 # MIDDLEWARE (Request/Response logging)

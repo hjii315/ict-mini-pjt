@@ -369,14 +369,18 @@ export function SearchResults() {
 
         <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/95 backdrop-blur-sm border-t border-white/20">
           <div className="container mx-auto max-w-7xl">
-            <Link href="/calculator">
+            <a
+              href="http://localhost:9000/calculator"
+              target="_blank"  // 새 탭에서 열고 싶으면 추가
+              rel="noopener noreferrer"
+            >
               <Button
                 size="lg"
                 className="w-full bg-gradient-to-r from-green-500 to-blue-600 hover:from-green-600 hover:to-blue-700 text-white font-semibold py-4 text-lg shadow-lg hover:shadow-xl transition-all duration-300"
               >
                 정산 계산하기
               </Button>
-            </Link>
+            </a>
           </div>
         </div>
       </div>
