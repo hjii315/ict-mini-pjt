@@ -321,7 +321,7 @@ export function MeetingPlaceApp() {
 
         {/* Footer */}
         <div className="text-center mt-12">
-          <p className="text-white/80 text-sm">© 2024 모임 장소 추천 AI. 친구들과의 즐거운 만남을 응원합니다! 🎉</p>
+          <p className="text-white/80 text-sm">© 모임 장소 추천 AI. 모여N빵!! 친구들과의 즐거운 만남을 응원합니다! 🎉</p>
         </div>
       </div>
     </div>
